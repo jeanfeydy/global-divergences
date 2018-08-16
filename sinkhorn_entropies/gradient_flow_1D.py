@@ -56,7 +56,6 @@ experiments["sinkhorn"] = {
     "assume_convergence" : True,
 }
 
-
 # Gradient flow + display =====================================================
 Nsteps, lr  = 400, .01 # Parameters for the gradient descent
 t_plot      = np.linspace(-0.1, 1.1, 1000)[:,np.newaxis]

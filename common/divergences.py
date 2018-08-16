@@ -46,7 +46,7 @@ class Heatmaps :
             axis.contour(img, origin='lower', linewidths = 1., colors = color,
                         levels = levels, extent=coords[0:4]) 
             if zero :
-                try :
+                try : # Bold line for the zero contour line; throws a warning if no "0" is found
                     axis.contour(img, origin='lower', linewidths = 2., colors = color,
                                 levels = (0.), extent=coords[0:4]) 
                 except : pass
@@ -95,6 +95,8 @@ def kernel_divergence(α, x, β, y, k=("energy", None), heatmaps=None, **params)
     mb_x = conv(k, x, y, β) # -b = k ★ β
     mb_y = conv(k, y, y, β) # -b = k ★ β
     # We now take advantage of the fact that ⟨α, k★β⟩ = ⟨β, k★α⟩
+    # N.B.: I should also implement an "autograd trick",
+    #       as we know that k is symmetric.
     cost = .5 * ( scal( α, ma_x - 2*mb_x ) + scal( β, mb_y ) )
     
     if heatmaps is None :
@@ -138,21 +140,26 @@ def Sinkhorn_ops(p, ε, x_i, y_j) :
     Returns a pair of routines S_x, S_y such that
       [S_x(f_i)]_j = -log sum_i exp( f_i - |x_i-y_j|^p / ε )
       [S_y(f_j)]_i = -log sum_j exp( f_j - |x_i-y_j|^p / ε )
+
+    This may look like a strange level of abstraction, but it is the most convenient way of
+    working with KeOps and Vanilla pytorch (with a pre-computed cost matrix) at the same time.
     """
     if   backend == "keops" : # Memory-efficient GPU implementation : ONline logsumexp
         # We create a KeOps GPU routine...
-        if   p == 1 : formula = "Fj - (Sqrt(SqDist(Xi,Yj)) / E)"
-        elif p == 2 : formula = "Fj -      (SqDist(Xi,Yj)  / E)"
-        else :        raise NotImplementedError()
+        if   p == 1 : formula = "Fj - (Sqrt(SqDist(Xi,Yj))  / E)"
+        elif p == 2 : formula = "Fj -      (SqDist(Xi,Yj)   / E)"
+        else :        
+            formula = "Fj - (Powf(SqDist(Xi,Yj),R)/ E)"
+            raise(NotImplementedError("I should fix the derivative at 0 of Powf, in KeOps's core."))
         D = x_i.shape[1] # Dimension of the ambient space (typically 2 or 3)
         routine = generic_logsumexp( formula, "outi = Vx(1)", # Formula, output...
-            # and input variables : ε, x_i, y_j, f_j, given with their respective dimensions
-            "E = Pm(1)", "Xi = Vx({})".format(D), "Yj = Vy({})".format(D), "Fj = Vy(1)")
+            # and input variables : ε, x_i, y_j, f_j, p/2 given with their respective dimensions
+            "E = Pm(1)", "Xi = Vx({})".format(D), "Yj = Vy({})".format(D), "Fj = Vy(1)", "R=Pm(1)")
 
         # Before wrapping it up in a simple pair of operators - don't forget the minus!
-        ε   = torch.Tensor([ε]).type_as(x_i)
-        S_x = lambda f_i : -routine(ε, y_j, x_i, f_i)
-        S_y = lambda f_j : -routine(ε, x_i, y_j, f_j)
+        ε,r = torch.Tensor([ε]).type_as(x_i), torch.Tensor([p/2]).type_as(x_i)
+        S_x = lambda f_i : -routine(ε, y_j, x_i, f_i, r)
+        S_y = lambda f_j : -routine(ε, x_i, y_j, f_j, r)
         return S_x, S_y
 
     elif backend == "pytorch" : # Naive matrix-vector implementation : OFFline logsumexp
@@ -160,7 +167,7 @@ def Sinkhorn_ops(p, ε, x_i, y_j) :
         C_e  = ( (x_i.unsqueeze(1) - y_j.unsqueeze(0)) ** 2).sum(2)
         if   p == 1 : C_e = C_e.sqrt() / ε
         elif p == 2 : C_e = C_e / ε
-        else :        raise NotImplementedError()
+        else : C_e = C_e**(p/2) / ε
         CT_e = C_e.t()
 
         # Before wrapping it up in a simple pair of operators - don't forget the minus!
@@ -181,6 +188,7 @@ def sink(α_i, x_i, β_j, y_j, p=1, eps=.1, nits=100, tol=1e-3, assume_convergen
     α_i_log, β_j_log = α_i.log(), β_j.log() # Precompute the logs of the measures' weights
     B_i,     A_j     = torch.zeros_like(α_i), torch.zeros_like(β_j) # Sampled influence fields
     
+    # if we assume convergence, we can skip all the "save computational history" stuff
     torch.set_grad_enabled(not assume_convergence)
 
     S_x, S_y = Sinkhorn_ops(p, ε, x_i, y_j) # Softmin operators (divided by ε, as it's slightly cheaper...)
@@ -200,15 +208,18 @@ def sink(α_i, x_i, β_j, y_j, p=1, eps=.1, nits=100, tol=1e-3, assume_convergen
         grid = grid.type_as(x_i)
         S2_x, _ = Sinkhorn_ops(p, ε, x_i, grid)
         _, S2_y = Sinkhorn_ops(p, ε, grid, y_j)
-        A_grid = S2_x( B_i + α_i_log ) # a(y)/ε = Smin_ε,x~α [ C(x,y) - b(x) ]  / ε
-        B_grid = S2_y( A_j + β_j_log ) # b(x)/ε = Smin_ε,y~β [ C(x,y) - a(y) ]  / ε
+        # Note that we want the final B_i and B_grid to coincide on x_i,
+        # so we must emulate with "A2_j" the alternate updates of the Sinkhorn loop
+        A_grid = S2_x( B_i + α_i_log )  # a(y)/ε = Smin_ε,x~α [ C(x,y) - b(x) ]  / ε
+        A2_j   =  S_x( B_i + α_i_log )
+        B_grid = S2_y( A2_j + β_j_log ) # b(x)/ε = Smin_ε,y~β [ C(x,y) - a(y) ]  / ε
 
         hmaps = (ε*A_grid.view(-1), ε*B_grid.view(-1))
     else : hmaps = None, None
 
 
     torch.set_grad_enabled(True)
-    # One last step, which allows us to bypass PyTorch's backprop engine if required
+    # One last step, which allows us to bypass PyTorch's backprop engine if required (as explained in the paper)
     if not assume_convergence :
         A_j = S_x( B_i + α_i_log )
         B_i = S_y( A_j + β_j_log )
@@ -217,7 +228,6 @@ def sink(α_i, x_i, β_j, y_j, p=1, eps=.1, nits=100, tol=1e-3, assume_convergen
         _, S_y = Sinkhorn_ops(p, ε, x_i, y_j.detach())
         A_j = S_x( (B_i + α_i_log).detach() )
         B_i = S_y( (A_j + β_j_log).detach() )
-
 
     a_y, b_x = ε*A_j.view(-1), ε*B_i.view(-1)
     return a_y, b_x, hmaps
@@ -232,12 +242,13 @@ def sym_sink(α_i, x_i, y_j=None, p=1, eps=.1, nits=100, tol=1e-3, assume_conver
     A_i     = torch.zeros_like(α_i)
     S_x, _  = Sinkhorn_ops(p, ε, x_i, x_i) # Sinkhorn operator from x_i to x_i (divided by ε, as it's slightly cheaper...)
     
+    # if we assume convergence, we can skip all the "save computational history" stuff
     torch.set_grad_enabled(not assume_convergence)
 
     for i in range(nits-1):
         A_i_prev = A_i
 
-        A_i = 0.5 * (A_i + S_x(A_i + α_i_log) ) # a(x)/ε = .5*(a(x)/ε + Smin_ε,y~α [ C(x,y) - g(y) ] / ε)
+        A_i = 0.5 * (A_i + S_x(A_i + α_i_log) ) # a(x)/ε = .5*(a(x)/ε + Smin_ε,y~α [ C(x,y) - a(y) ] / ε)
         
         err = ε * (A_i - A_i_prev).abs().mean()    # Stopping criterion: L1 norm of the updates
         if err.item() < tol : break
