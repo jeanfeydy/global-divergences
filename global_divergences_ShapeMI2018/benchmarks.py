@@ -155,7 +155,8 @@ def full_bench(bench_name) :
             lines.append( bench_config(bench_name, "cuda", "GPU_1D", fidelity=s) )
 
     benchs = np.array(lines).T
-    np.savetxt("output/benchmarks/benchmark_"+bench_name+".csv", benchs, fmt='%-9.5f', header=header)
+    np.savetxt("output/benchmarks/benchmark_"+bench_name+".csv", benchs, 
+               fmt='%-9.5f', header=header, comments='')
 
 if __name__ == "__main__" :
     #full_bench("gaussian_conv")

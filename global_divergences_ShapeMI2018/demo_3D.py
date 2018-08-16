@@ -1,7 +1,15 @@
+#-------------------------------------------------------
+#            Code used to generate Fig. 12
+#-------------------------------------------------------
+
+import os.path
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + '..' + os.path.sep + 'common')
+
 import torch
-from torch.autograd import grad
+from torch.autograd        import grad
 from sparse_distance_bmp   import sparse_distance_bmp
-from pykeops.torch import Kernel
+from pykeops.torch         import Kernel
 
 import numpy   as np
 import nibabel as nib
@@ -17,7 +25,7 @@ def LoadImage(fname, sampling=None, index = 1) :
     img = nib.load(fname)
     dat, aff = torch.FloatTensor( img.get_data() ), torch.FloatTensor( img.affine )
 
-    # Extract the 1st or 2nd shape (Knee dataset) -----------------------
+    # Extract the 1st or 2nd shape (Knee OAI dataset) -------------------
     if   index == 1 :
         dat[dat > 1]  = 0
     elif index == 2 :
@@ -39,8 +47,8 @@ def LoadImage(fname, sampling=None, index = 1) :
 # Load the nifti files
 Sampling  = (2,2,1) #(4,4,2) # If your GPU is good enough, feel free to decrease these factors!
 shape_ind = 1       # use '2' for the 2nd knee cap
-source, aff_source = LoadImage("data/9003406_20060322_SAG_3D_DESS_LEFT_016610899303_label_all.nii.gz", Sampling, index=shape_ind)
-target, aff_target = LoadImage("data/9007827_20041006_SAG_3D_DESS_LEFT_016610263603_label_all.nii.gz", Sampling, index=shape_ind)
+source, aff_source = LoadImage("data/OAI_a.nii.gz", Sampling, index=shape_ind)
+target, aff_target = LoadImage("data/OAI_b.nii.gz", Sampling, index=shape_ind)
 
 print("Working with volumes of size :", list(source.shape), ", ", list(target.shape) )
 
@@ -54,31 +62,36 @@ scale = (((aff_source[:3,:3] @ extr)**2).sum() / 3).sqrt() # |(1,1,1)|_2 = sqrt(
 experiments = {}
 
 experiments["warmup"] = {
-    "formula"     : "kernel",
-    "id"          : Kernel( "-distance(x,y)" ),
-    "gamma"       : s2v( 1. ),
+    "formula"  : "kernel",
+    "k"        : ("energy", None),
 }
 
 experiments["energy_distance"] = {
-    "formula"     : "kernel",
-    "id"          : Kernel( "-distance(x,y)" ),
-    "gamma"       : s2v( 1. ),
+    "formula"  : "kernel",
+    "k"        : ("energy", None),
 }
 
-for nits in [1, 2, 3, 5, 10] :
-    experiments["hausdorff_sinkhorn_L1_medium_{}".format(nits)] = {
-        "formula"        : "hausdorff",
-        "cost"           : "bregman",
-        "distance_field" : "sinkhorn",
-        "nits"           : nits,
-        "id"          : Kernel( "laplacian(x,y)" ),
-        "epsilon"     : s2v(   .05   ),
-        "gamma"       : s2v( 1/.05**2),
+for nits in [1, 2, 3, 5] :
+    experiments["hausdorff_L1_M_{}its".format(nits)] = {
+        "formula" : "hausdorff",
+        "p"       : 1,
+        "eps"     : .05, # Remember : eps is homogeneous to C(x,y)
+        "nits"    : nits,
+        "tol"     : 0.,  # Run all iterations, no early stopping!
     }
 
+for p in [1, 2] : # C(x,y) = |x-y|^1 or |x-y|^2
+    for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L") ] :
+        experiments["sinkhorn_L{}_{}".format(p, eps_s)] = {
+            "formula" : "sinkhorn",
+            "p"       : p,
+            "eps"     : eps**p, # Remember : eps is homogeneous to C(x,y)
+            "nits"    : 100,
+            "tol"     : 1e-4,
+            "assume_convergence" : True,
+        }
 
 def test(name, params, verbose=True) :
-    params["kernel_heatmap_range"] = (0,1,100)
 
     # Compute the cost and gradient ============================================================
     t_0 = time()

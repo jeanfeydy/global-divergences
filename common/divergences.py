@@ -35,11 +35,10 @@ X,Y     = np.meshgrid( ticks_x, ticks_y )
 grid    = torch.from_numpy(np.vstack( (X.ravel(), Y.ravel()) ).T).contiguous()
 
 class Heatmaps :
-    def __init__(self, a, b=None) :
-        self.a = a.view(res,res).data.cpu().numpy() # reshape as a "background" image
-        self.b = None
-        if b is not None :
-            self.b = b.view(res,res).data.cpu().numpy()
+    def __init__(self, a=None, b=None) :
+        # reshape as a "background" image
+        self.a = None if a is None else a.view(res,res).data.cpu().numpy() 
+        self.b = None if b is None else b.view(res,res).data.cpu().numpy()
 
     def plot(self, axis) :
         def contour_plot(img, color, nlines=15, zero=False) :
@@ -97,7 +96,7 @@ def kernel_divergence(α, x, β, y, k=("energy", None), heatmaps=None, **params)
     mb_y = conv(k, y, y, β) # -b = k ★ β
     # We now take advantage of the fact that ⟨α, k★β⟩ = ⟨β, k★α⟩
     cost = .5 * ( scal( α, ma_x - 2*mb_x ) + scal( β, mb_y ) )
-
+    
     if heatmaps is None :
         return cost
     elif heatmaps == True : # display  k ★ (α-β) in the background
@@ -105,6 +104,8 @@ def kernel_divergence(α, x, β, y, k=("energy", None), heatmaps=None, **params)
         grid = grid.type_as(x)
         heats = Heatmaps( conv(k, grid, x, α) - conv(k, grid, y, β) )
         return cost, heats
+    else :
+        return cost, None
 
 
 
@@ -203,7 +204,7 @@ def sink(α_i, x_i, β_j, y_j, p=1, eps=.1, nits=100, tol=1e-3, assume_convergen
         B_grid = S2_y( A_j + β_j_log ) # b(x)/ε = Smin_ε,y~β [ C(x,y) - a(y) ]  / ε
 
         hmaps = (ε*A_grid.view(-1), ε*B_grid.view(-1))
-    else : hmaps = None
+    else : hmaps = None, None
 
 
     torch.set_grad_enabled(True)

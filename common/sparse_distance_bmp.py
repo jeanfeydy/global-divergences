@@ -58,7 +58,6 @@ def sparse_distance_bmp(params, A, B, affine_A, affine_B, normalize=True, info=F
 
     routine = routines[ params.get("formula", "hausdorff") ]
     params["heatmaps"] = info
-
     cost, heatmaps = routine( α_i,x_i, β_j,y_j, **params )
 
     if action == "image" :
