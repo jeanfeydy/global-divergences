@@ -18,4 +18,4 @@ Here is the code that we used to generate the figures of our ShapeMI2018 paper, 
 - Figure 12: demo_3D.py + 3D Slicer
   (Load source and target as "Volumes" and segment them using the "Threshold" tool in segment editor;
    Load the vector fields as "Transforms" and display them in the transform panel;
-   Don't forget to tick the Slice view and 3D View on the source volume. )
+   Don't forget to tick the Slice view and 3D View wrt. the source volume. )
