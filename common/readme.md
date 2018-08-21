@@ -27,7 +27,9 @@ On top of the Sinkhorn algorithm, this folder also provides:
   densities supported on a 2D or 3D grid, encoded as bitmaps.
 - Fancy heatmaps and springs visualizations, in [`display`](./display.py).
 
-N.B.: Following the conventions that we detail in our papers,
+
+**Dimensions of the input variables.** 
+Following the conventions that we detail in our papers,
 these routines work on sampled measures α and β, encoded
 as sums of Dirac masses
 
