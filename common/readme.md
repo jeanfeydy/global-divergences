@@ -23,6 +23,17 @@ On top of the Sinkhorn algorithm, this folder also provides:
 - An efficient implementation of MMD/kernel norms, in [`kernel_norm`](./kernel_norm.py).
 - Convenient, high-level divergence functions between measures:
   [`divergences`](./divergences.py) for sampled measures
-  and [`sparse_distance_bmp`](./sparse_distances_bmp.py) for
+  and [`sparse_distance_bmp`](./sparse_distance_bmp.py) for
   densities supported on a 2D or 3D grid, encoded as bitmaps.
 - Fancy heatmaps and springs visualizations, in [`display`](./display.py).
+
+N.B.: Following the conventions that we detail in our papers,
+these routines work on sampled measures α and β, encoded
+as sums of Dirac masses
+
+α = ∑_i α_i·δ_{x_i} ,   β = ∑_j β_j·δ_{y_j}.
+
+Here, α_i, x_i, β_j, y_j are all torch Tensors of shapes
+N-by-1, N-by-D, M-by-1 and M-by-D, where N, M are the number of samples
+in both measures and D is the dimension of the ambient feature 
+space - typically, D=2 or 3 in shape analysis.
