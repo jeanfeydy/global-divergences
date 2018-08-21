@@ -1,7 +1,9 @@
 
 import torch
 from torch.autograd import grad
-from divergences    import kernel_divergence, regularized_ot, hausdorff_divergence, sinkhorn_divergence
+from divergences    import kernel_divergence
+from divergences    import regularized_ot, hausdorff_divergence, sinkhorn_divergence
+from divergences    import regularized_ot_visualization, hausdorff_divergence_visualization, sinkhorn_divergence_visualization
 
 def extract_point_cloud(I, affine) :
     """Bitmap to point cloud."""
@@ -54,6 +56,9 @@ def sparse_distance_bmp(params, A, B, affine_A, affine_B, normalize=True, info=F
         "regularized_ot" : regularized_ot,
         "hausdorff"      : hausdorff_divergence,
         "sinkhorn"       : sinkhorn_divergence, 
+        "regularized_ot_visualization" : regularized_ot_visualization,
+        "hausdorff_visualization"      : hausdorff_divergence_visualization,
+        "sinkhorn_visualization"       : sinkhorn_divergence_visualization, 
     }
 
     routine = routines[ params.get("formula", "hausdorff") ]

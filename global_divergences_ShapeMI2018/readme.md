@@ -10,10 +10,10 @@ Here is the code that we used to generate the figures of our ShapeMI2018 paper, 
 - Figure  4: demo_2D.py
 - Figure  5: softmin_1D.py + PgfPlot
 - Figure  6: demo_2D.py
-- Figure  7:
+- Figure  7: demo_sinkhorn.py
 - Figure  8: Unfortunately, an old script that I lost :-(
-- Figure  9:
-- Figure 10:
+- Figure  9: demo_sinkhorn.py
+- Figure 10: demo_sinkhorn.py
 - Figure 11: benchmarks.py + PgfPlot
 - Figure 12: demo_3D.py + 3D Slicer
   (Load source and target as "Volumes" and segment them using the "Threshold" tool in segment editor;

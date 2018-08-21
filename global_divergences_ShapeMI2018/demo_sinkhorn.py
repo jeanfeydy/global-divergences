@@ -1,11 +1,21 @@
+#-------------------------------------------------------
+#            Code used to generate Fig. 7, 9, 10
+#-------------------------------------------------------
+
+
+import os.path
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + '..' + os.path.sep + 'common')
+
 import torch
 from torch.autograd        import grad
 from sparse_distance_bmp   import sparse_distance_bmp
 from pykeops.torch         import Kernel
 
 import numpy as np
-from matplotlib import pyplot as plt
 from scipy import misc
+from scipy.ndimage.filters import gaussian_filter
+from matplotlib import pyplot as plt
 from time  import time
 
 use_cuda = torch.cuda.is_available()
@@ -17,43 +27,31 @@ plt.show()
 s2v = lambda x : tensor([x])
 
 
-from scipy.ndimage.filters import gaussian_filter
+# Load the pngs ================================================================================
 
 def LoadImage(fname) :
     img = misc.imread(fname, flatten = True) # Grayscale
-    img = gaussian_filter(img, 1, mode='nearest')
+    #img = gaussian_filter(img, 1, mode='nearest')
     img = (img[::-1, :])  / 255.
     img = np.swapaxes(img, 0,1 )
     return tensor( 1 - img )
 
-# Load the pngs
-dataset = "worms_c"
+dataset = "bars"
 datasets = {
-    "amoeba"   : ("data/amoeba_1.png",   "data/amoeba_2.png"),
-    "dirac"    : ("data/dirac_a.png",    "data/dirac_b.png"),
-    "blobs"    : ("data/blobs_a.png",    "data/blobs_b.png"),
-    "knees"    : ("data/knee_1.png",     "data/knee_2.png"),
-    "knees_2D" : ("data/knee_source.png","data/knee_target.png"),
-    "bars"     : ("data/hor_bars_1.png", "data/hor_bars_2.png"),
-    "bars_b"   : ("data/hor_bars_1.png", "data/hor_bars_1b.png"),
-    "minibars" : ("data/minibar_1.png",  "data/minibar_2.png"),
-    "keys"     : ("data/sol.png",        "data/fa.png"),
-    "keys_n"   : ("data/sol_noisy.png",  "data/fa_noisy.png"),
-    "worms"    : ("data/worm_1.png",     "data/worm_2.png"),
-    "worms_a"  : ("data/worm_a.png",     "data/worm_b.png"),
-    "worms_b"  : ("data/worm_1.png",     "data/worm_1b.png"),
-    "worms_c"  : ("data/worm_c.png",     "data/worm_d.png"),
+    "knees_2D" : ("data/knee_a.png",  "data/knee_b.png"),  # Figs 1.c, 1.d, 
+    "worms"    : ("data/worm_a.png",  "data/worm_b.png"),  # Figs 3, 4.c
+    "blobs"    : ("data/blobs_a.png", "data/blobs_b.png"), # Figs 4.a, 4.b, 6
+    "bars"     : ("data/bar_a.png",   "data/bar_b.png"),
 }
 if dataset == "knees_2D" :
-    sample = 8
+    sample, scale_grad = 8, .03
     smooth = True # As the structure is very thin, sampling on a grid every 8 pixels looks weird...
                   # we smooth the gradient a little bit to prevent this visualization artifact from being visible
-    scale_grad = 0.04
 else :
-    sample = 4
+    sample, scale_grad = 4, .015
     smooth = False
-    scale_grad = 0.02
 
+# Note that both measures will be normalized in "sparse_distance_bmp"
 source = LoadImage(datasets[dataset][0])
 target = LoadImage(datasets[dataset][1])
 
@@ -62,81 +60,41 @@ scale = source.shape[0]
 affine = tensor( [[ 1, 0, 0 ],
                   [ 0, 1, 0 ] ]) / scale
 
-# Parameters of our data attachment term =======================================================
+# Parameters of our data fidelity term  =========================================================
 experiments = {}
 
-
-if True : # Warmup PyTorch
+if True : # Warmup PyTorch,  display dataset
     experiments["warmup"] = {
         "formula"     : "kernel",
-        "id"          : Kernel( "-distance(x,y)" ),
-        "gamma"       : s2v( 1. ),
-    }
+        "k"           : ("energy", None), }
+    experiments["dataset"] = {
+        "formula"     : "kernel",
+        "k"           : ("energy", None), }
+
+if True : # Hausdorff
+    for p in [1, 2] : # C(x,y) = |x-y|^1 or |x-y|^2
+        for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL"), (100., "XXL")] :
+            for nits in [1, 2, 5, 10, 30] :
+                experiments["hausdorff_L{}_{}_{}its".format(p, eps_s, nits)] = {
+                    "formula"        : "hausdorff_visualization",
+                    "p"              : p,
+                    "eps"            : eps**p, # Remember : eps is homogeneous to C(x,y)
+                    "nits"           : nits,
+                }
+
+if True : # Sinkhorn
+    for p in [1, 2] : # C(x,y) = |x-y|^1 or |x-y|^2
+        for eps, eps_s in [ (.01, "S"), (.1, "L"), (100., "XXL") ] :
+            for nits in [1.5, 2, 4.5, 5, 9.5, 10, 29.5, 30] :
+                experiments["sinkhorn_L{}_{}_{}its".format(p, eps_s, nits)] = {
+                    "formula"        : "sinkhorn_visualization",
+                    "p"              : p,
+                    "eps"            : eps**p, # Remember : eps is homogeneous to C(x,y)
+                    "nits"           : nits,
+                }
 
 
-if True : # sinkhorn
-    for nits in [1, 4, 9, 29, 100] :
-        experiments["sinkhorn_L2_it_{}_plus_05".format(nits)] = {
-            "formula"     : "sinkhorn",
-            "epsilon"     : s2v( .01 ),
-            "kernel"      : {
-                "id"     : Kernel("gaussian(x,y)") ,
-                "gamma"  :  1 / s2v( .01 )      },
-            "tol"         : 1e-6,
-            "nits"        : nits,
-            "rho"         : -1., # Balanced transport. Make sure that both measures have equal mass!
-            "transport_plan" : "minimal_symmetric+heatmaps",
-            "end_on_target" : True,
-        }
-        experiments["sinkhorn_L2_it_{}_plus_1".format(nits)] = {
-            "formula"     : "sinkhorn",
-            "epsilon"     : s2v( .01 ),
-            "kernel"      : {
-                "id"     : Kernel("gaussian(x,y)") ,
-                "gamma"  :  1 / s2v( .01 )      },
-            "tol"         : 1e-6,
-            "nits"        : nits+1,
-            "rho"         : -1., # Balanced transport. Make sure that both measures have equal mass!
-            "transport_plan" : "minimal_symmetric+heatmaps",
-            "end_on_target" : False,
-        }
-
-if True : # sinkhorn_sym
-    for nits in [1, 2, 3, 5, 10] :
-        experiments["sinkhorn_sym_L2_it_{}".format(nits)] = {
-            "formula"        : "hausdorff",
-            "nits"           : nits,
-            "id"          : Kernel( "gaussian(x,y)" ),
-            "epsilon"     : s2v(   .01   ),
-            "gamma"       : s2v( 1/.01),
-            "only_a"      : True,
-        }
-
-if True : # hausdorff_sinkhorn
-    for nits in [1, 2, 3, 5, 10] :
-        experiments["hausdorff_L2_it_{}".format(nits)] = {
-            "formula"        : "hausdorff",
-            "nits"           : nits,
-            "id"          : Kernel( "gaussian(x,y)" ),
-            "epsilon"     : s2v(   .01   ),
-            "gamma"       : s2v( 1/.01),
-            "gradient"    : True,
-        }
-
-if True : # sinkhorn
-    for nits in [ 100] :
-        experiments["sinkhorn_L2_it_{}_plus_05".format(nits)] = {
-            "formula"     : "sinkhorn",
-            "epsilon"     : s2v( .01 ),
-            "kernel"      : {
-                "id"     : Kernel("gaussian(x,y)") ,
-                "gamma"  :  1 / s2v( .01 )      },
-            "tol"         : 1e-6,
-            "nits"        : nits,
-            "rho"         : -1., # Balanced transport. Make sure that both measures have equal mass!
-            "transport_plan" : "minimal_symmetric+heatmaps",
-            "gradient"    : True,
-        }
+# Loop on all the experiments ================================================================
 
 # We'll save the output wrt. the number of iterations
 display = True
@@ -145,8 +103,7 @@ plt.figure(figsize=(10,10))
 
 def test(name, params, verbose=True) :
     params["kernel_heatmap_range"] = (0,1,100)
-
-    # Compute the cost and gradient ============================================================
+    # Compute the cost and gradient (+ fancy heatmaps in the background) ========================
     t_0 = time()
     cost, grad_src, heatmaps = sparse_distance_bmp(params, source, target, 
                                                            affine, affine, 
@@ -159,29 +116,23 @@ def test(name, params, verbose=True) :
     if display :
         plt.clf()
 
-        # Source + Target :
+        # Source + Target : fancy  red+blue overlay
         source_plot = .3*source.cpu().numpy()
         target_plot = .3*target.cpu().numpy()
-        if not params.get("only_a", False ) :
-            img_plot    = np.dstack( ( np.ones(source_plot.shape) - target_plot, 
-                                    np.ones(source_plot.shape) - source_plot - target_plot, 
-                                    np.ones(source_plot.shape) - source_plot ) )
-        else :
-            img_plot    = np.dstack( ( np.ones(source_plot.shape), 
-                                    np.ones(source_plot.shape) - source_plot, 
-                                    np.ones(source_plot.shape) - source_plot ) )
-            if heatmaps is not None :
-                heatmaps.b = None
+        img_plot    = np.dstack( ( np.ones(source_plot.shape) - target_plot, 
+                                   np.ones(source_plot.shape) - source_plot - target_plot, 
+                                   np.ones(source_plot.shape) - source_plot ) )
         
         plt.imshow( np.swapaxes(img_plot,0,1), origin="lower", extent=(0,1,0,1))
 
-        if params.get("gradient", False) :
+        if name != "dataset" :
             # Subsample the gradient field :
             grad_plot = grad_src.cpu().numpy()
             grad_plot = grad_plot[::sample, ::sample, :]
             if smooth :
-                grad_plot = gaussian_filter(grad_plot, [1,1,0], mode='nearest')
+                grad_plot = gaussian_filter(grad_plot, [2,2,0], mode='nearest')
 
+            # Display the gradient field :
             X,Y   = np.meshgrid( np.linspace(0, 1, grad_plot.shape[0]+1)[:-1] + .5/(sample*grad_plot.shape[0]), 
                                 np.linspace(0, 1, grad_plot.shape[1]+1)[:-1] + .5/(sample*grad_plot.shape[1]) )
             U, V  = grad_plot[:,:,0], grad_plot[:,:,1]
@@ -194,16 +145,15 @@ def test(name, params, verbose=True) :
             plt.quiver( Y, X, U, V, 
                         scale = scale_grad*scale, scale_units="dots", color="#5CBF3A", zorder=3, width=0.0025)
 
-        # "Distance" fields :
-        if heatmaps is not None :
-            heatmaps.plot(plt.gca(), {})
+            # "Distance", influence fields in the background :
+            if heatmaps is not None :
+                heatmaps.plot(plt.gca())
             
         # Save result in the "output/" folder :
         plt.savefig("output/sinkhorn/" + dataset + "_" + name +".png") 
         plt.pause(.01)
 
 
-#test("hausdorff_KL_1_1", experiments["hausdorff_KL_1_1"], verbose=False) # one run for nothing
 for name, params in experiments.items() :
     test(name, params)
 
