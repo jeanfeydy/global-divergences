@@ -16,7 +16,7 @@ Information on the subject is available in our papers:
 
 First and foremost, this repo is about providing a reference implementation of Sinkhorn-related divergences. In [`/common/`](./common), you will find
 a [simple](./common/sinkhorn_balanced_simple.py) and
-an [efficient](./common/sinkhorn_balanced_simple.py) implementation of
+an [efficient](./common/sinkhorn_balanced.py) implementation of
 the Sinkhorn algorithm.
 The folder [`global_divergences_ShapeMI2018`](./global_divergences_ShapeMI2018)
 will let you reproduce the figures of our ShapeMI paper (Miccai 2018 workshop),
@@ -24,5 +24,4 @@ while [`sinkhorn_entropies`](./sinkhorn_entropies) contains those
 of our reference theoretical article.
 
 Please note that to run some of our demos, you will need to install
-both [pytorch](https://pytorch.org/) and [KeOps](https://www.kernel-operations.io)
--- no worries: `pip install pykeops` should do the trick.
+both [pytorch](https://pytorch.org/) and [KeOps](https://www.kernel-operations.io). No worries: `pip install pykeops` should do the trick.
