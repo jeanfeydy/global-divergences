@@ -25,10 +25,13 @@ dtype    = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
 # Parameters for the experiments ===============================================
 experiments = {}
+experiments["dataset"] = {
+    "formula" : "kernel",
+    "k"    : ("energy", None) }
 experiments["energy"] = {
     "formula" : "kernel",
     "k"    : ("energy", None) }
-"""
+
 for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL"), (100., "XXL")] :
     experiments["gaussian_{}".format(eps_s)] = {
         "formula" : "kernel",
@@ -36,9 +39,9 @@ for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL"), (100., "XXL")
     experiments["laplacian_{}".format(eps_s)] = {
         "formula" : "kernel",
         "k"    : ("laplacian", eps) }
-"""
-for p in [2,1] :
-    for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL") ] :
+
+for p in [1,2] :
+    for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL"), (1., "XXL") ] :
         
         experiments["regularized_ot_L{}_{}".format(p, eps_s)] = {
             "formula" : "regularized_ot",
@@ -66,52 +69,69 @@ Nsteps, lr  = 501, .01 # Parameters for the gradient descent
 t_plot      = np.linspace(-0.1, 1.1, 1000)[:,np.newaxis]
 save_its    = [0, 25, 50, 100, 500]
 
-def display(x, color, list_save=None) :
-    kde  = KernelDensity(kernel='gaussian', bandwidth= .005 ).fit(x.data.cpu().numpy())
-    dens = np.exp( kde.score_samples(t_plot) )
-    dens[0] = 0 ; dens[-1] = 0;
-    plt.fill(t_plot, dens, color=color)
-    if list_save is not None :
-        list_save.append(dens.ravel()) # We'll save a csv at the end
+
+# Dataset =====================================================================
+
+from sampling import draw_samples, display_samples
+
+# Alpha and Beta are probability measures sampled from two png densities
+N, M = 500, 500 # Number of sample points for source and target
+
+dataset = "crescents"
+datasets = {
+    "moons"     : ("data/moon_a.png",    "data/moon_b.png"),
+    "densities" : ("data/density_a.png", "data/density_b.png"),
+    "slopes"    : ("data/slope_a.png",   "data/slope_b.png"),
+    "crescents" : ("data/crescent_a.png","data/crescent_b.png"),
+}
+if dataset == "crescents" :
+    ax_limits = [0,1,0,1]
+    y_ticks   = [0.,.2,.4,.6,.8, 1.]
+else :
+    ax_limits = [0,1,0.125,.875]
+    y_ticks   = [.2,.4,.6,.8]
+display_grad = False # True if you want the green arrows
+
+
+α_i, X_i = draw_samples(datasets[dataset][0], N, dtype)
+β_j, Y_j = draw_samples(datasets[dataset][1], M, dtype)
+
+
     
 for name, params in experiments.items() :
     print("Experiment :", name)
-    x_ts = [t_plot.ravel()]
 
-    # Dataset =====================================================================
+    x_i = X_i.clone() ; y_j = Y_j.clone()
 
-    # Alpha and Beta are uniform probability measures supported by intervals in [0,1]
-    N, M = 5000, 5000 # Number of sample points for source and target
-
-    t_i = torch.linspace(0, 1, N).type(dtype).view(-1,1) ; t_j = torch.linspace(0, 1, M).type(dtype).view(-1,1)
-    x_i = 0.2 * t_i                                      ; y_j = 0.4 * t_j + 0.6
-    α_i = torch.ones(N,1).type(dtype) / N                ; β_j = torch.ones(M,1).type(dtype) / M
     # We're going to perform gradient descent on Cost(Alpha, Beta) 
     # wrt. the positions x_i of the diracs masses that make up Alpha:
     x_i.requires_grad_(True)  
 
-    os.makedirs(os.path.dirname("output/flow_1D/{}/".format(name)), exist_ok=True)
-    for i in tqdm(range(Nsteps)): # Gradient flow ================================
-        if i in save_its :
-            display(y_j, (.55,.55,.95))
-            display(x_i, (.95,.55,.55) , x_ts )
-            plt.axis([-.1,1.1,-.1,5.5])
-
-            plt.savefig("output/flow_1D/{}/{:03d}.png".format(name, i))
-            plt.clf()
-        
+    os.makedirs(os.path.dirname("output/flow_2D/{}/{}/".format(dataset,name)), exist_ok=True)
+    for i in tqdm(range(Nsteps)): # Gradient flow ================================        
         # Compute cost
         loss = routines[params["formula"]](α_i, x_i, β_j, y_j, **params)
 
-        # Compte gradient and update x_i
+        # Compte gradient and display
         loss.backward()
-        x_i.data -= lr * (x_i.grad / α_i.data) # in-place modification of the tensor's values
-        x_i.grad.zero_()
+        if i in save_its :
+            plt.scatter( [10], [10] ) # shameless hack to prevent the slight pyplot change of axis...
 
-    # Save progress in a csv file for Tikz display in the paper ============================
+            display_samples(plt.gca(), y_j, (.55,.55,.95))
+            display_samples(plt.gca(), x_i, (.95,.55,.55), None if (name == "dataset" or not display_grad) else x_i.grad)
 
-    header = ""
-    data = np.stack(x_ts).T
-    np.savetxt("output/flow_1D/{}.csv".format(name), data, fmt='%-9.5f', header=header, comments = "")
+            plt.axis("equal")
+            plt.axis(ax_limits)
+            plt.yticks(y_ticks)
+            plt.gca().set_aspect('equal', adjustable='box')
+
+            plt.savefig("output/flow_2D/{}/{}/{:03d}.png".format(dataset, name, i))
+            plt.clf()
+        
+        if name != "dataset" :
+            # update the x_i's
+            x_i.data -= lr * (x_i.grad / α_i.data) # in-place modification of the tensor's values
+            x_i.grad.zero_()
+
 
 print("Done.")

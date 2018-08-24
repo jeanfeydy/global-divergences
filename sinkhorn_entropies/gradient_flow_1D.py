@@ -28,7 +28,7 @@ experiments = {}
 experiments["energy"] = {
     "formula" : "kernel",
     "k"    : ("energy", None) }
-"""
+
 for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL"), (100., "XXL")] :
     experiments["gaussian_{}".format(eps_s)] = {
         "formula" : "kernel",
@@ -36,8 +36,8 @@ for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL"), (100., "XXL")
     experiments["laplacian_{}".format(eps_s)] = {
         "formula" : "kernel",
         "k"    : ("laplacian", eps) }
-"""
-for p in [2,1] :
+
+for p in [1,2] :
     for eps, eps_s in [ (.01, "S"), (.05, "M"), (.1, "L"), (.5, "XL") ] :
         
         experiments["regularized_ot_L{}_{}".format(p, eps_s)] = {

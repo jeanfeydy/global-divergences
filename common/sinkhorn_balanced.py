@@ -89,6 +89,7 @@ def Sinkhorn_ops(p, ε, x_i, y_j) :
 def sink(α_i, x_i, β_j, y_j, p=1, eps=.1, nits=100, tol=1e-3, assume_convergence=False, heatmaps=None, **kwargs):
 
     ε = eps # Python supports Unicode. So fancy!
+    if type(nits) in [list, tuple] : nits = nits[0]  # The user may give different limits for Sink and SymSink
     # Sinkhorn loop with A = a/eps , B = b/eps ....................................................
     
     α_i_log, β_j_log = α_i.log(), β_j.log() # Precompute the logs of the measures' weights
@@ -142,6 +143,7 @@ def sink(α_i, x_i, β_j, y_j, p=1, eps=.1, nits=100, tol=1e-3, assume_convergen
 def sym_sink(α_i, x_i, y_j=None, p=1, eps=.1, nits=100, tol=1e-3, assume_convergence=False, heatmaps=None, **kwargs):
 
     ε = eps # Python supports Unicode. So fancy!
+    if type(nits) in [list, tuple] : nits = nits[1]  # The user may give different limits for Sink and SymSink
     # Sinkhorn loop ......................................................................
 
     α_i_log = α_i.log()
