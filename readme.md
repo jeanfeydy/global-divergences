@@ -6,7 +6,7 @@ Hausdorff and Sinkhorn divergences between sampled measures.
 Thanks to the [KeOps library](https://www.kernel-operations.io),
 our routines scale up to batches of 1,000,000 samples, **without memory overflows**.
 
-N.B.: As of today, KeOps is still in beta; the 0.1 version will be released on [pip](https://pypi.org/project/pykeops/) by the end of October and include a new documentation, Windows support, a bug fix for high-dimensional vectors.
+N.B.: As of today, KeOps is still in beta. The 0.1 version will be released on [pip](https://pypi.org/project/pykeops/) by the end of October, including a new documentation, Windows support and a bug fix for high-dimensional vectors.
 
 Information on the subject is available in our papers:
 
