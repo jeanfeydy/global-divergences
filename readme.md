@@ -6,13 +6,15 @@ Hausdorff and Sinkhorn divergences between sampled measures.
 Thanks to the [KeOps library](https://www.kernel-operations.io),
 our routines scale up to batches of 1,000,000 samples, **without memory overflows**.
 
+N.B.: As of today, KeOps is still in beta; the 0.1 version will be released on [pip](https://pypi.org/project/pykeops/) by the end of October and include a new documentation, Windows support, a bug fix for high-dimensional vectors.
+
 Information on the subject is available in our papers:
 
-- *Global divergences between measures : from Hausdorff distance to Optimal Transport*,
-  Jean Feydy, Alain Trouvé, [ShapeMI2018](https://shapemi.github.io/); [HAL version](https://hal.archives-ouvertes.fr/hal-01827184/).
+- [*Global divergences between measures : from Hausdorff distance to Optimal Transport*](https://hal.archives-ouvertes.fr/hal-01827184/),
+  Jean Feydy, Alain Trouvé, [ShapeMI2018](https://shapemi.github.io/).
 
-- *Interpolating between Optimal Transport and MMD using Sinkhorn Divergences*,
-  Jean Feydy, Thibault Séjourné, François-Xavier Vialard, Shun-ichi Amari, Alain Trouvé, Gabriel Peyré; [ArXiv](https://arxiv.org/abs/1810.08278).
+- [*Interpolating between Optimal Transport and MMD using Sinkhorn Divergences*](https://arxiv.org/abs/1810.08278),
+  Jean Feydy, Thibault Séjourné, François-Xavier Vialard, Shun-ichi Amari, Alain Trouvé, Gabriel Peyré.
   
 - *Sinkhorn entropies and divergences*,
   Jean Feydy, Thibault Séjourné, François-Xavier Vialard, Shun-ichi Amari, Alain Trouvé, Gabriel Peyré; (our long reference paper, available soon).
