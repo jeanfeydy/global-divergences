@@ -18,10 +18,9 @@ def lse( v_ij ):
     return V_i + (v_ij - V_i).exp().sum(1).log().view(-1,1)
 
 def dist_matrix(x_i, y_j, p) :
-    C_e = ( (x_i.unsqueeze(1) - y_j.unsqueeze(0)) ** 2).sum(2)
-    if   p == 1 : return C_e.sqrt() / ε
-    elif p == 2 : return C_e / ε
-    else :        return C_e**(p/2) / ε
+    if   p == 1 : return   (x_i.unsqueeze(1) - y_j.unsqueeze(0)).norm(dim=2)  / ε
+    elif p == 2 : return ( (x_i.unsqueeze(1) - y_j.unsqueeze(0)) ** 2).sum(2) / ε
+    else :        return   (x_i.unsqueeze(1) - y_j.unsqueeze(0)).norm(dim=2)**(p/2) / ε
 
 #######################################################################################################################
 # Sinkhorn iterations .....................................................................
