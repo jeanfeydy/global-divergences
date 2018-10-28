@@ -70,10 +70,10 @@ def Sinkhorn_ops(p, ε, x_i, y_j) :
 
     elif backend == "pytorch" : # Naive matrix-vector implementation : OFFline logsumexp
         # We precompute the |x_i-y_j|^p matrix once and for all...
-
-        if   p == 1 : C_e =   (x_i.unsqueeze(1) - y_j.unsqueeze(0)).norm(dim=2)  / ε
-        elif p == 2 : C_e = ( (x_i.unsqueeze(1) - y_j.unsqueeze(0)) ** 2).sum(2) / ε
-        else :        C_e =   (x_i.unsqueeze(1) - y_j.unsqueeze(0)).norm(dim=2)**(p/2) / ε
+        x_y = x_i.unsqueeze(1) - y_j.unsqueeze(0)
+        if   p == 1 : C_e =   x_y.norm(dim=2)  / ε
+        elif p == 2 : C_e = ( x_y ** 2).sum(2) / ε
+        else :        C_e =   x_y.norm(dim=2)**(p/2) / ε
         CT_e = C_e.t()
 
         # Before wrapping it up in a simple pair of operators - don't forget the minus!
