@@ -1,3 +1,6 @@
+**N.B.:** This repository is out of date. A reference implementation of Optimal Transport divergences for shape registration is now available on the [geomloss](https://github.com/jeanfeydy/geomloss) repository: [website](https://www.kernel-operations.io/geomloss), [pip package](https://pypi.org/project/geomloss/).
+
+
 # Global divergences
 
 This repository provides efficient implementations of
